@@ -1,21 +1,25 @@
 #! /usr/bin/env python3
 # -*- encoding:utf-8 -*-
 
+import os
 import csv
 import json
 import requests
 from time import localtime
 from urllib.parse import urlencode
-# from requests.packages.urllib3.exceptions import InsecureRequestWarning # 禁用安全请求警告
-# requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+from requests import Timeout
+from requests.packages.urllib3.exceptions import InsecureRequestWarning, MaxRetryError # 禁用安全请求警告
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 # from pymongo import MongoClient
 # from pyquery import PyQuery as pq
 
 # Total=208916
 DATAFILE = './data.csv'
-MAX_PAGE = 3 # 23213
-PAGESIZE = 16 # 9
+MAX_PAGE = 1 # 23213
+PAGESIZE = 2 # 9
+PICLIMIT = 5
+PICSFILE = './Gallery/{}'
 URL = 'https://www.balticshipping.com/'
 
 
@@ -123,7 +127,7 @@ def get_info(page):
         'request[0][data][3][value]': page
     }
     try:
-        print(f'Getting {page} Page info..', end='')
+        print(f'Getting {page} Page info..')
         data=urlencode(req)
         # print(data)
         response = requests.post(URL, data, headers=headers, verify=False)
@@ -134,22 +138,17 @@ def get_info(page):
     except requests.ConnectionError as e:
         print('Error', e.args)
 
-# def save_to_csv(result: list):
-#     with open(DATAFILE, 'w+') as data:
-#         writer = csv.writer(data)
-#         writer.writerow(['index', 'IMO', 'MMSI', 'Name', 'Former', 'Vessel', 'Operating', 'Flag', 'Gross_tonnage',
-#             'Deadweight', 'Lenght', 'Breadth', 'Engine_type', 'Engine_model', 'Engine_power',
-#             'Build_year', 'Builder', 'Class_society', 'Home_port', 'Owner', 'Manager'])
-#         writer.writerow(result)
 
 def parse_data(ships: list, page: int):
     for i, ship in enumerate(ships):
-        res = ship['data']
-        result = [
+        res = ship.get('data')
+        if not res:
+            continue
+        ship_info = [
             '%d-%d'%(page, i+1),
             res.get('imo'),
             res.get('mmsi'),
-            res.get('name'),
+            res.get('name', 'AnonymousShip'),
             ';'.join([
                 item['name']+'(%s, %s)'%(
                     item.get('year_until', '???'),
@@ -173,8 +172,36 @@ def parse_data(ships: list, page: int):
             res.get('owner_name'),
             res.get('manager_name')
         ]
+        ship_pics = [item.get('file', '') for item in res.get('gallery', [])]
+        ship_pics.append(ship_info[3])
         print('/', end='')
-        yield result
+        yield ship_pics, ship_info
+
+def save_pic(urls: list):
+    name = urls.pop()
+    path = PICSFILE.format(name)
+    if not os.path.isdir(path):
+        os.makedirs(path)
+    for i, url in enumerate(urls):
+        if url is '':
+            continue
+        try:
+            pic = requests.get(url, timeout=3)
+            with open(path+'/{}-{}.jpg'.format(name, i), 'wb') as image:
+                image.write(pic.content)
+            print('Saving {}-{}.jpg success'.format(name, i))
+        except TimeoutError:
+            print('Saving {}-{}.jpg timeout..'.format(name, i))
+        if i == PICLIMIT:
+            break
+
+# def save_to_csv(result: list):
+#     with open(DATAFILE, 'w+') as data:
+#         writer = csv.writer(data)
+#         writer.writerow(['index', 'IMO', 'MMSI', 'Name', 'Former', 'Vessel', 'Operating', 'Flag', 'Gross_tonnage',
+#             'Deadweight', 'Lenght', 'Breadth', 'Engine_type', 'Engine_model', 'Engine_power',
+#             'Build_year', 'Builder', 'Class_society', 'Home_port', 'Owner', 'Manager'])
+#         writer.writerow(result)
 
 def main():
     get_dic()
@@ -186,8 +213,11 @@ def main():
         for page in range(1, MAX_PAGE + 1):
             json = get_info(page)
             results = parse_data(*json)
-            for result in results:
+            for imgs, result in results:
+                save_pic(imgs)
                 writer.writerow(result)
 
 if __name__ == '__main__':
+    # save_pic(["http://www.shipspotting.com/photos/middle/1/5/0/1064051.jpg", 'test'])
+    # print(json.dumps(get_info(1), indent=2, separators=(',', ':')))
     main()
