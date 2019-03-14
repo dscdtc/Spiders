@@ -22,7 +22,7 @@ for i in range(1, PAGE):
         result.append(url)
         result.append(content('#thread_subject').text())  # title
         result.append(content('.hm.ptn span.xi1').text())  # num
-        result.append(content('.pcb .t_f:first-child').text().split('\n')[0])  #content
+        result.append(content('.pcb .t_f:first-line').text().split('\n')[0])  #content
         writer.writerow(result)
         print(url)
 
