@@ -21,8 +21,8 @@ for i in range(1, PAGE):
         content = pq(url='https://bbs.rong360.com/'+url, headers=headers)
         result.append(url)
         result.append(content('#thread_subject').text())  # title
-        result.append(content('.hm.ptn span.xi1').text())  # num
-        result.append(content('.pcb .t_f:first-line').text().split('\n')[0])  #content
+        result.append(content('.hm.ptn span.xi1:first-child').text())  # num
+        result.append(content('.pcb .t_f:first-line').text())  #content
         writer.writerow(result)
         print(url)
 
